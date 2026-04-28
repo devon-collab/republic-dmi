@@ -1,59 +1,15 @@
 import chromium from "@sparticuz/chromium-min";
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import puppeteer from "puppeteer-core";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { ReportDocument } from "@/components/dmi/report-document";
-import type { GeneratedNarrativeSections, TriggeredRecommendation } from "@/lib/types";
-import { buildReportComputation } from "@/lib/scoring";
 import { reportInputSchema } from "@/lib/validation";
 
 export const runtime = "nodejs";
 
-const strategicFindingSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  body: z.string(),
-  metricLabel: z.string(),
-  metricValue: z.string(),
-  riskLevel: z.enum(["Low", "Medium", "High", "Critical"])
-});
-
-const narrativesSchema = z.object({
-  executiveSummary: z.string(),
-  marketPositionSummary: z.string(),
-  recommendationsIntroduction: z.string(),
-  servicePathwayIntroduction: z.string(),
-  closingStatement: z.string(),
-  strategicFindings: z.array(strategicFindingSchema)
-});
-
-const recommendationSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  rationale: z.string(),
-  classification: z.enum(["Quick Win", "Strategic Programme", "Quick Win to Strategic Programme"]),
-  riskOfInaction: z.string(),
-  timeline: z.string(),
-  categoryKey: z.enum([
-    "websiteAuthority",
-    "seoHealth",
-    "organicVisibility",
-    "userEngagement",
-    "technicalPerformance",
-    "trustAndConversion",
-    "strategicDigitalMaturity"
-  ]),
-  impactScore: z.number(),
-  sortOrder: z.number()
-});
-
 const requestSchema = z.object({
   input: reportInputSchema,
-  narratives: narrativesSchema,
-  recommendations: z.array(recommendationSchema)
+  html: z.string().min(1, "Rendered HTML is required for export.")
 });
 
 export async function POST(request: Request) {
@@ -67,14 +23,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const report = buildReportComputation(parsed.data.input);
   const fileName = buildDownloadName(parsed.data.input.prospect.companyName, parsed.data.input.prospect.reportDate);
-  const html = buildDocumentHtml(
-    parsed.data.input,
-    report,
-    parsed.data.narratives,
-    parsed.data.recommendations
-  );
+  const html = parsed.data.html;
 
   try {
     const executablePath = await resolveChromeExecutable();
@@ -134,39 +84,6 @@ async function resolveChromeExecutable() {
   }
 
   return undefined;
-}
-
-function buildDocumentHtml(
-  input: z.infer<typeof reportInputSchema>,
-  report: ReturnType<typeof buildReportComputation>,
-  narratives: GeneratedNarrativeSections,
-  recommendations: TriggeredRecommendation[]
-) {
-  const document = renderToStaticMarkup(
-    createElement(ReportDocument, {
-      input,
-      report,
-      narratives,
-      recommendations
-    })
-  );
-
-  return [
-    "<!DOCTYPE html>",
-    '<html lang="en">',
-    "<head>",
-    '<meta charSet="utf-8" />',
-    '<meta name="viewport" content="width=device-width, initial-scale=1" />',
-    '<link rel="preconnect" href="https://fonts.googleapis.com" />',
-    '<link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />',
-    '<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet" />',
-    "<style>html,body{margin:0;padding:0;background:#f3efe9;}body{font-family:'Outfit',Arial,sans-serif;}</style>",
-    "</head>",
-    "<body>",
-    document,
-    "</body>",
-    "</html>"
-  ].join("");
 }
 
 function buildDownloadName(companyName: string, reportDate: string) {

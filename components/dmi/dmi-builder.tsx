@@ -61,6 +61,7 @@ type ActiveEntityKey = "prospect" | (typeof FIXED_COMPETITOR_IDS)[number];
 
 export function DmiBuilder() {
   const initialValuesRef = useRef(createDefaultReportInput());
+  const previewContainerRef = useRef<HTMLDivElement | null>(null);
   const {
     register,
     watch,
@@ -358,14 +359,14 @@ export function DmiBuilder() {
 
     try {
       const payload = normaliseReportInput(getValues());
+      const renderedPreview = previewContainerRef.current?.innerHTML ?? "";
+      const htmlDocument = buildExportHtml(renderedPreview, window.location.origin);
       const response = await fetch("/api/export-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           input: payload,
-          report,
-          narratives,
-          recommendations: availableRecommendations
+          html: htmlDocument
         })
       });
 
@@ -1120,7 +1121,7 @@ export function DmiBuilder() {
                             </div>
 
                             <div className="overflow-x-auto rounded-[2rem] border border-stone-200 bg-stone-200/70 p-4">
-                              <div className="min-w-[230mm]">
+                              <div className="min-w-[230mm]" ref={previewContainerRef}>
                                 <ReportDocument
                                   input={normaliseReportInput(getValues())}
                                   report={report}
@@ -1209,6 +1210,26 @@ function buildDownloadName(companyName: string, reportDate: string, htmlFallback
   const safeCompany = slugify(companyName || "prospect").replace(/-/g, "_");
   const safeDate = formatDateForFilename(reportDate || new Date().toISOString().slice(0, 10));
   return `RepublicDMI_${safeCompany}_${safeDate}.${htmlFallback ? "html" : "pdf"}`;
+}
+
+function buildExportHtml(renderedPreview: string, origin: string) {
+  return [
+    "<!DOCTYPE html>",
+    '<html lang="en">',
+    "<head>",
+    '<meta charSet="utf-8" />',
+    '<meta name="viewport" content="width=device-width, initial-scale=1" />',
+    `<base href="${origin}" />`,
+    '<link rel="preconnect" href="https://fonts.googleapis.com" />',
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />',
+    '<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet" />',
+    "<style>html,body{margin:0;padding:0;background:#f6fbfb;}body{font-family:'Outfit',Arial,sans-serif;}</style>",
+    "</head>",
+    "<body>",
+    renderedPreview,
+    "</body>",
+    "</html>"
+  ].join("");
 }
 
 function normaliseReportInput(values: ReportInput): ReportInput {
