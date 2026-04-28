@@ -23,7 +23,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const fileName = buildDownloadName(parsed.data.input.prospect.companyName, parsed.data.input.prospect.reportDate);
+  const fileName = buildDownloadName(
+    parsed.data.input.prospect.companyName,
+    parsed.data.input.prospect.reportDate
+  );
   const html = parsed.data.html;
 
   try {
